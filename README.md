@@ -25,17 +25,18 @@ PC1 (Application & Client Host)
 
 ## 📋 Sub-Lab Index
 
-| #   | Sub-Lab                                                                                      | Topic                                                              | Status         |
-| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------- |
-| 01  | [Virtualization Setup](./sublabs/01-virtualization-setup.md)                                 | Multi-host topology design, distributed VM architecture            | ✅ Complete    |
-| 02  | [Active Directory Deployment](./sublabs/02-active-directory-deployment.md)                   | AD DS, DNS, domain join, cross-host authentication                 | ✅ Complete    |
-| 03  | [DHCP & Network Redesign](./sublabs/03-dhcp-network-redesign.md)                             | Physical LAN migration, DHCP scope, IP scheme redesign             | ✅ Complete    |
-| 04  | [File Server & RBAC](./sublabs/04-file-server-rbac.md)                                       | NTFS permissions, SMB hidden shares, security group access         | ✅ Complete    |
-| 05  | [GPO Drive Mapping](./sublabs/05-gpo-drive-mapping.md)                                       | Group Policy Preferences, Item-Level Targeting, auto drive mapping | ✅ Complete    |
-| 06  | [Tiered Admin Model](./sublabs/06-tiered-admin-model.md)                                     | Tier 0/1/2 separation, delegated administration, nested groups     | ✅ Complete    |
-| 07  | [Security Hardening – Tier Enforcement](./sublabs/07-security-hardening-tier-enforcement.md) | GPO logon restriction, User Rights Assignment, tier validation     | ✅ Complete    |
-| 08  | [Server Hardening Baseline](./sublabs/08-server-hardening-baseline.md)                       | Audit policy, RDP restriction, firewall, SMB hardening             | ✅ Complete    |
-| 09  | [Centralized Event Log Monitoring](./sublabs/09-centralized-event-log-monitoring.md)         | Windows Event Forwarding, WEF collector/source setup               | 🔄 In Progress |
+| #   | Sub-Lab                                                                                      | Topic                                                              | Status      |
+| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------- |
+| 01  | [Virtualization Setup](./sublabs/01-virtualization-setup.md)                                 | Multi-host topology design, distributed VM architecture            | ✅ Complete |
+| 02  | [Active Directory Deployment](./sublabs/02-active-directory-deployment.md)                   | AD DS, DNS, domain join, cross-host authentication                 | ✅ Complete |
+| 03  | [DHCP & Network Redesign](./sublabs/03-dhcp-network-redesign.md)                             | Physical LAN migration, DHCP scope, IP scheme redesign             | ✅ Complete |
+| 04  | [File Server & RBAC](./sublabs/04-file-server-rbac.md)                                       | NTFS permissions, SMB hidden shares, security group access         | ✅ Complete |
+| 05  | [GPO Drive Mapping](./sublabs/05-gpo-drive-mapping.md)                                       | Group Policy Preferences, Item-Level Targeting, auto drive mapping | ✅ Complete |
+| 06  | [Tiered Admin Model](./sublabs/06-tiered-admin-model.md)                                     | Tier 0/1/2 separation, delegated administration, nested groups     | ✅ Complete |
+| 07  | [Security Hardening – Tier Enforcement](./sublabs/07-security-hardening-tier-enforcement.md) | GPO logon restriction, User Rights Assignment, tier validation     | ✅ Complete |
+| 08  | [Server Hardening Baseline](./sublabs/08-server-hardening-baseline.md)                       | Audit policy, RDP restriction, firewall, SMB hardening             | ✅ Complete |
+| 09  | [Centralized Event Log Monitoring](./sublabs/09-centralized-event-log-monitoring.md)         | Windows Event Forwarding, WEF collector/source setup               | ✅ Complete |
+| 10  | [Sysmon Integration](./sublabs/10-sysmon-integration-advanced-monitoring.md)                 | Advanced monitoring, EDR fundamentals, Sysmon + WEF                | ✅ Complete |
 
 ---
 
@@ -66,7 +67,10 @@ PC1 (Application & Client Host)
 [08 Server Hardening Baseline]
         │
         ▼
-[09 Centralized Event Log Monitoring] (WIP)
+[09 Centralized Event Log Monitoring]
+        │
+        ▼
+[10 Sysmon Integration (EDR)]
 ```
 
 ---
