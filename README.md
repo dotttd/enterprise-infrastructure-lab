@@ -15,6 +15,9 @@ PC2 (Infrastructure Host)
 PC1 (Application & Client Host)
   ├── FS01 — 192.168.200.20  [File Server, Tier1 Member Server]
   └── WIN10 — DHCP           [Domain Workstation, Tier2]
+
+PC3 (Security & Analytics Host)
+  └── WA_SIEM — 192.168.200.30  [Wazuh SIEM Manager]
 ```
 
 ✅ No home router dependency — dedicated internal enterprise LAN  
@@ -25,18 +28,19 @@ PC1 (Application & Client Host)
 
 ## 📋 Sub-Lab Index
 
-| #   | Sub-Lab                                                                                      | Topic                                                              | Status      |
-| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------- |
-| 01  | [Virtualization Setup](./sublabs/01-virtualization-setup.md)                                 | Multi-host topology design, distributed VM architecture            | ✅ Complete |
-| 02  | [Active Directory Deployment](./sublabs/02-active-directory-deployment.md)                   | AD DS, DNS, domain join, cross-host authentication                 | ✅ Complete |
-| 03  | [DHCP & Network Redesign](./sublabs/03-dhcp-network-redesign.md)                             | Physical LAN migration, DHCP scope, IP scheme redesign             | ✅ Complete |
-| 04  | [File Server & RBAC](./sublabs/04-file-server-rbac.md)                                       | NTFS permissions, SMB hidden shares, security group access         | ✅ Complete |
-| 05  | [GPO Drive Mapping](./sublabs/05-gpo-drive-mapping.md)                                       | Group Policy Preferences, Item-Level Targeting, auto drive mapping | ✅ Complete |
-| 06  | [Tiered Admin Model](./sublabs/06-tiered-admin-model.md)                                     | Tier 0/1/2 separation, delegated administration, nested groups     | ✅ Complete |
-| 07  | [Security Hardening – Tier Enforcement](./sublabs/07-security-hardening-tier-enforcement.md) | GPO logon restriction, User Rights Assignment, tier validation     | ✅ Complete |
-| 08  | [Server Hardening Baseline](./sublabs/08-server-hardening-baseline.md)                       | Audit policy, RDP restriction, firewall, SMB hardening             | ✅ Complete |
-| 09  | [Centralized Event Log Monitoring](./sublabs/09-centralized-event-log-monitoring.md)         | Windows Event Forwarding, WEF collector/source setup               | ✅ Complete |
-| 10  | [Sysmon Integration](./sublabs/10-sysmon-integration-advanced-monitoring.md)                 | Advanced monitoring, EDR fundamentals, Sysmon + WEF                | ✅ Complete |
+| #   | Sub-Lab                                                                                      | Topic                                                              | Status         |
+| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------- |
+| 01  | [Virtualization Setup](./sublabs/01-virtualization-setup.md)                                 | Multi-host topology design, distributed VM architecture            | ✅ Complete    |
+| 02  | [Active Directory Deployment](./sublabs/02-active-directory-deployment.md)                   | AD DS, DNS, domain join, cross-host authentication                 | ✅ Complete    |
+| 03  | [DHCP & Network Redesign](./sublabs/03-dhcp-network-redesign.md)                             | Physical LAN migration, DHCP scope, IP scheme redesign             | ✅ Complete    |
+| 04  | [File Server & RBAC](./sublabs/04-file-server-rbac.md)                                       | NTFS permissions, SMB hidden shares, security group access         | ✅ Complete    |
+| 05  | [GPO Drive Mapping](./sublabs/05-gpo-drive-mapping.md)                                       | Group Policy Preferences, Item-Level Targeting, auto drive mapping | ✅ Complete    |
+| 06  | [Tiered Admin Model](./sublabs/06-tiered-admin-model.md)                                     | Tier 0/1/2 separation, delegated administration, nested groups     | ✅ Complete    |
+| 07  | [Security Hardening – Tier Enforcement](./sublabs/07-security-hardening-tier-enforcement.md) | GPO logon restriction, User Rights Assignment, tier validation     | ✅ Complete    |
+| 08  | [Server Hardening Baseline](./sublabs/08-server-hardening-baseline.md)                       | Audit policy, RDP restriction, firewall, SMB hardening             | ✅ Complete    |
+| 09  | [Centralized Event Log Monitoring](./sublabs/09-centralized-event-log-monitoring.md)         | Windows Event Forwarding, WEF collector/source setup               | ✅ Complete    |
+| 10  | [Sysmon Integration](./sublabs/10-sysmon-integration-advanced-monitoring.md)                 | Advanced monitoring, EDR fundamentals, Sysmon + WEF                | ✅ Complete    |
+| 11  | [Wazuh SIEM Integration](./sublabs/11-wazuh-siem-integration.md)                             | SIEM, Log Analytics, Zero-Trust Networking (Tailscale)             | 🚧 In Progress |
 
 ---
 
@@ -71,6 +75,9 @@ PC1 (Application & Client Host)
         │
         ▼
 [10 Sysmon Integration (EDR)]
+        │
+        ▼
+[11 Wazuh SIEM Integration] ────────> docs/siem-design.md (Upcoming)
 ```
 
 ---
@@ -103,6 +110,7 @@ PC1 (Application & Client Host)
 | HR/Finance still able to log into FS01        | Explicitly defined Allow-only logon via User Rights Assignment |
 | admin.t1 could login but not restart FS01     | Added Tier1-Server-Admins to `Shut down the system` URA        |
 | Audit Policy conflicting with legacy settings | Enabled `Force audit policy subcategory settings` override     |
+| RAM constraints for SIEM components           | Distributed lab to 3rd physical PC via **Tailscale SDN**       |
 
 ---
 
@@ -159,9 +167,9 @@ PC1 (Application & Client Host)
 
 ## 🚀 Current Status
 
-**Completed (Sub-Lab 01–08):** Distributed lab environment with full AD, DHCP, RBAC, GPO, Tiered Admin Model, and Security Hardening baseline.
+**Completed (Sub-Lab 01–10):** Distributed lab environment with full AD, DHCP, RBAC, GPO, Tiered Admin Model, Security Hardening, and Sysmon EDR telemetry.
 
-**In Progress (Sub-Lab 09):** Windows Event Forwarding — centralized log collection from FS01 to DC01.
+**In Progress (Sub-Lab 11):** Wazuh SIEM Integration — Implementing centralized analytics and Zero-Trust networking via Tailscale.
 
 ---
 
@@ -179,7 +187,9 @@ enterprise-infrastructure-lab/
 │   ├── 06-tiered-admin-model.md
 │   ├── 07-security-hardening-tier-enforcement.md
 │   ├── 08-server-hardening-baseline.md
-│   └── 09-centralized-event-log-monitoring.md
+│   ├── 09-centralized-event-log-monitoring.md
+│   ├── 10-sysmon-integration-advanced-monitoring.md
+│   └── 11-wazuh-siem-integration.md
 ├── docs/
 │   ├── ad-structure.md
 │   ├── ip-design.md
@@ -192,5 +202,7 @@ enterprise-infrastructure-lab/
 │       ├── 05-gpo-drive-mapping/
 │       ├── 06-tiered-admin-model/
 │       ├── 07-security-hardening-tier-enforcement/
-│       └── 08-server-hardening-baseline/
+│       ├── 08-server-hardening-baseline/
+│       ├── 09-centralized-event-log-monitoring/
+│       └── 10-sysmon-integration-advanced-monitoring/
 ```
