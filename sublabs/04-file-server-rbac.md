@@ -12,7 +12,7 @@ This sub-lab establishes department-based file segmentation aligned with enterpr
 
 File Server: FS01  
 IP Address: 192.168.200.20  
-Domain: corp.local  
+Domain: corp.local
 
 Architecture:
 
@@ -40,7 +40,7 @@ Architecture:
 Installed:
 
 File and Storage Services  
-→ File Server  
+→ File Server
 
 Confirmed SMB service operational.
 
@@ -50,10 +50,12 @@ Confirmed SMB service operational.
 
 Created structured directory:
 
-D:\Shares\
-  ├── HR
-  ├── Finance
-  └── IT
+```text
+C:\shares\
+ ├── HR
+├── Finance
+└── IT
+```
 
 Each folder represents a department.
 
@@ -73,7 +75,7 @@ Hidden shares prevent casual browsing and align with enterprise standards.
 
 - HR-Staff
 - Finance-Staff
-- IT-Admins
+- IT-Admin
 
 Permissions assigned via Security Groups only.
 
@@ -86,16 +88,16 @@ No direct user-to-folder permissions applied.
 ### HR Folder
 
 - HR-Staff → Modify
-- IT-Admins → Full Control
+- IT-Admin → Full Control
 
 ### Finance Folder
 
 - Finance-Staff → Modify
-- IT-Admins → Full Control
+- IT-Admin → Full Control
 
 ### IT Folder
 
-- IT-Admins → Full Control
+- IT-Admin → Full Control
 
 No cross-department permissions between HR and Finance.
 
@@ -108,15 +110,18 @@ Share permissions aligned with NTFS permissions to prevent conflicts.
 Example:
 
 HR$ share:
+
 - HR-Staff → Change
-- IT-Admins → Full Control
+- IT-Admin → Full Control
 
 Finance$ share:
+
 - Finance-Staff → Change
-- IT-Admins → Full Control
+- IT-Admin → Full Control
 
 IT$ share:
-- IT-Admins → Full Control
+
+- IT-Admin → Full Control
 
 ---
 
@@ -130,11 +135,10 @@ Access tested from WIN10 domain client:
 
 Validation performed using:
 
-- \\FS01\HR$
-- \\192.168.200.20\Finance$
-- Manual access testing
-- Access Denied verification
-- whoami /groups to confirm token membership
+- `\\FS01\HR$` — HR user confirmed access
+- `\\192.168.200.20\Finance$` — HR user received: _"Windows cannot access \\192.168.200.20\Finance$"_
+- IT user simultaneously accessed `IT$`, `HR$`, and `Finance$` shares
+- `whoami /groups` to confirm token membership
 
 Confirmed proper RBAC enforcement across distributed hosts.
 
@@ -152,7 +156,7 @@ Resolved using:
 
 - gpupdate /force
 - klist purge
-- net use * /delete
+- net use \* /delete
 - Permission review via Advanced Security Settings
 
 ---
@@ -168,14 +172,26 @@ Resolved using:
 
 ---
 
+## 🏢 Enterprise Relevance
+
+File server RBAC is one of the most common and critical infrastructure tasks in any Windows-based enterprise. The model implemented here — using Security Groups (not direct user permissions) to control NTFS access, combined with hidden SMB shares — is exactly how enterprise file servers are managed in practice.
+
+The access denial test (`Windows cannot access \\192.168.200.20\Finance$` returned for `hr.staff`) and the IT admin multi-share access test provide concrete, verifiable proof that least privilege is working correctly across the network.
+
+This pattern scales directly to production: adding a new user to an HR department requires only adding them to `HR-Staff` — no individual permission assignments needed. This is the fundamental advantage of group-based RBAC.
+
+---
+
 ## 🎯 Outcome
 
 Successfully deployed a domain-integrated file server with:
 
-- Department-based segmentation
-- Security group-based access control
-- Hidden administrative shares
-- Cross-host validation
+- Department-based segmentation (`HR$`, `Finance$`, `IT$` hidden shares)
+- Security group-based access control (no direct user permissions)
+- Hidden administrative shares preventing casual browsing
+- Cross-host validation: RBAC enforced from WIN10 (PC1) to FS01 (PC1) via DC01 (PC2)
 - Scalable permission model
 
 This sub-lab demonstrates enterprise-style RBAC implementation within a distributed Windows infrastructure.
+
+→ Continued in [Sub-Lab 05 – GPO Drive Mapping](./05-gpo-drive-mapping.md)

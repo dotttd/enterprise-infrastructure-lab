@@ -1,168 +1,192 @@
-# Enterprise Infrastructure Lab (Distributed Architecture)
+# Enterprise Infrastructure Lab
 
-## 📌 Overview
-
-This project documents the design and implementation of a distributed Windows Server enterprise lab environment built across two physical machines connected via dedicated LAN.
-
-The lab simulates a small business infrastructure including:
-
-- Active Directory Domain Services
-- DNS & DHCP
-- Role-Based Access Control (RBAC)
-- File Server with NTFS & SMB segmentation
-- Automated Drive Mapping via Group Policy
-- Multi-host distributed topology
+> A distributed Windows Server enterprise lab environment built across two physical machines, simulating real-world IT infrastructure design, security hardening, and administrative governance.
 
 ---
 
 ## 🖥 Physical Architecture
 
-### Topology
-
+```text
 PC2 (Infrastructure Host)
-  └── DC01 (Domain Controller)
-
-Dedicated LAN Connection (Ethernet Cable)
-
+  └── DC01 — 192.168.200.10  [Domain Controller, DNS, DHCP]
+        │
+        │  Direct Ethernet — 192.168.200.0/24
+        │
 PC1 (Application & Client Host)
-  ├── FS01 (File Server)
-  └── WIN10 (Domain Client)
+  ├── FS01 — 192.168.200.20  [File Server, Tier1 Member Server]
+  └── WIN10 — DHCP           [Domain Workstation, Tier2]
+```
 
-✔ No dependency on home router  
-✔ Dedicated internal enterprise network  
-✔ Cross-host infrastructure simulation  
-
----
-
-## 🌐 Network Design
-
-Network: 192.168.200.0/24
-
-DC01  → 192.168.200.10 (Static)  
-FS01  → 192.168.200.20 (Static)  
-Win10 → 192.168.200.100 (DHCP)  
-
-Services:
-
-- DHCP served by DC01
-- DNS integrated with Active Directory
-- Kerberos authentication enabled
-- Internal LAN-based infrastructure
+✅ No home router dependency — dedicated internal enterprise LAN  
+✅ Cross-host distributed simulation (2 physical machines)  
+✅ All VMs bridged to physical NIC for real network communication
 
 ---
 
-## 🏢 Infrastructure Components
+## 📋 Sub-Lab Index
 
-### 🔹 DC01 – Domain Controller
-
-- New forest deployment: corp.local
-- DNS integrated with AD
-- DHCP scope configured (192.168.200.100–200)
-- Group Policy Management
-- Security group design
-- Kerberos authentication validation
-
----
-
-### 🔹 FS01 – File Server
-
-Department folder structure:
-
-D:\Shares\HR  
-D:\Shares\Finance  
-D:\Shares\IT  
-
-Implemented:
-
-- NTFS permissions via Security Groups
-- SMB hidden shares (HR$, Finance$, IT$)
-- Role-based access segmentation
+| #   | Sub-Lab                                                                                      | Topic                                                              | Status         |
+| --- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------- |
+| 01  | [Virtualization Setup](./sublabs/01-virtualization-setup.md)                                 | Multi-host topology design, distributed VM architecture            | ✅ Complete    |
+| 02  | [Active Directory Deployment](./sublabs/02-active-directory-deployment.md)                   | AD DS, DNS, domain join, cross-host authentication                 | ✅ Complete    |
+| 03  | [DHCP & Network Redesign](./sublabs/03-dhcp-network-redesign.md)                             | Physical LAN migration, DHCP scope, IP scheme redesign             | ✅ Complete    |
+| 04  | [File Server & RBAC](./sublabs/04-file-server-rbac.md)                                       | NTFS permissions, SMB hidden shares, security group access         | ✅ Complete    |
+| 05  | [GPO Drive Mapping](./sublabs/05-gpo-drive-mapping.md)                                       | Group Policy Preferences, Item-Level Targeting, auto drive mapping | ✅ Complete    |
+| 06  | [Tiered Admin Model](./sublabs/06-tiered-admin-model.md)                                     | Tier 0/1/2 separation, delegated administration, nested groups     | ✅ Complete    |
+| 07  | [Security Hardening – Tier Enforcement](./sublabs/07-security-hardening-tier-enforcement.md) | GPO logon restriction, User Rights Assignment, tier validation     | ✅ Complete    |
+| 08  | [Server Hardening Baseline](./sublabs/08-server-hardening-baseline.md)                       | Audit policy, RDP restriction, firewall, SMB hardening             | ✅ Complete    |
+| 09  | [Centralized Event Log Monitoring](./sublabs/09-centralized-event-log-monitoring.md)         | Windows Event Forwarding, WEF collector/source setup               | 🔄 In Progress |
 
 ---
 
-### 🔹 WIN10 – Domain Client
+## 🗺 Project Connection Map
 
-- Domain joined
-- DHCP validated
-- DNS resolution tested
-- GPO application tested
+```text
+[01 Virtualization]
+        │
+        ▼
+[02 Active Directory] ──────────────> docs/ad-structure.md
+        │
+        ▼
+[03 DHCP & Network] ─────────────────> docs/ip-design.md
+        │
+        ▼
+[04 File Server & RBAC] ─────────────> docs/rbac-design.md
+        │
+        ▼
+[05 GPO Drive Mapping]
+        │
+        ▼
+[06 Tiered Admin Model] ─────────────> docs/ad-structure.md (Tier OU)
+        │                               docs/rbac-design.md (Tier Access)
+        ▼
+[07 Security Hardening – Tier Enforcement]
+        │
+        ▼
+[08 Server Hardening Baseline]
+        │
+        ▼
+[09 Centralized Event Log Monitoring] (WIP)
+```
 
 ---
 
-## 🔐 RBAC Implementation
+## 🔐 Security Architecture Summary
 
-Security Groups:
+### Access Control Layers
 
-- HR-Staff
-- Finance-Staff
-- IT-Admins
-
-Access Matrix:
-
-| Role     | HR | Finance | IT |
-|----------|----|----------|----|
-| HR       | ✔  | ❌       | ❌ |
-| Finance  | ❌ | ✔        | ❌ |
-| IT       | ✔  | ✔        | ✔ |
-
----
-
-## 📂 Group Policy Automation
-
-Drive Mapping implemented via:
-
-User Configuration  
-→ Preferences  
-→ Windows Settings  
-→ Drive Maps  
-
-Features:
-
-- Action: Replace
-- Item-level targeting
-- Security Group-based drive assignment
-- Automated drive provisioning per department
+| Layer             | Mechanism                                                 | Scope                      |
+| ----------------- | --------------------------------------------------------- | -------------------------- |
+| NTFS Permissions  | Security Groups (`HR-Staff`, `Finance-Staff`, `IT-Admin`) | File system access on FS01 |
+| GPO Drive Mapping | Item-Level Targeting by group membership                  | Automated drive assignment |
+| Tier 0 Admin      | `Tier0-Domain-Admins` → `Domain Admins` (nested)          | Domain Controller only     |
+| Tier 1 Admin      | `Tier1-Server-Admins` → FS01 Local Administrators         | Member Servers only        |
+| Tier 2 Admin      | `Tier2-Helpdesk-Admins` → Delegated on Users OU           | Password reset only        |
+| Logon Restriction | GPO `Tier1-Logon-Restriction` linked to `OU=Tier1`        | Console + RDP access       |
+| Security Baseline | GPO `Tier1-Security-Baseline` linked to `OU=Tier1`        | Audit, Firewall, SMB       |
 
 ---
 
 ## 🛠 Engineering Challenges Solved
 
-- Resolved VM memory contention by migrating DC to dedicated host
-- Redesigned DHCP scope after network topology change
-- Migrated from internal NAT network to physical LAN
-- Debugged Kerberos token propagation
-- Corrected Item-level targeting (AND vs OR logic)
-- Diagnosed firewall ICMP blocking
-- Rebuilt distributed infrastructure across hosts
+| Challenge                                     | Resolution                                                     |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| DC01 memory contention on shared host         | Migrated DC01 to dedicated physical host (PC2)                 |
+| VirtualBox NAT — no cross-host routing        | Redesigned to physical LAN with bridged NICs                   |
+| IP scheme conflict after NAT removal          | Full migration from `10.10.x.x` to `192.168.200.0/24`          |
+| Kerberos token not updated after group change | `klist purge` + full logoff/logon cycle                        |
+| GPO drive not applying to correct users       | Debugged Item-Level Targeting AND vs OR logic                  |
+| HR/Finance still able to log into FS01        | Explicitly defined Allow-only logon via User Rights Assignment |
+| admin.t1 could login but not restart FS01     | Added Tier1-Server-Admins to `Shut down the system` URA        |
+| Audit Policy conflicting with legacy settings | Enabled `Force audit policy subcategory settings` override     |
+
+---
+
+## 🏗 Reference Design Documents
+
+| Document                                  | Description                                                            |
+| ----------------------------------------- | ---------------------------------------------------------------------- |
+| [ip-design.md](./docs/ip-design.md)       | Network topology, IP allocation, DHCP scope, DNS design                |
+| [ad-structure.md](./docs/ad-structure.md) | OU hierarchy, Tier Model structure, naming conventions, GPO list       |
+| [rbac-design.md](./docs/rbac-design.md)   | Full RBAC model — file access, drive mapping, tiered admin permissions |
 
 ---
 
 ## 🎯 Skills Demonstrated
 
-- Active Directory Deployment
-- DNS & DHCP Configuration
-- Network Topology Redesign
-- Role-Based Access Control
-- NTFS & SMB Permission Design
-- Group Policy Automation
-- Distributed Infrastructure Engineering
-- Troubleshooting & Root Cause Analysis
+**Infrastructure & Networking**
+
+- Distributed multi-host virtualization architecture
+- Physical LAN design and bridged networking
+- DHCP & DNS deployment and troubleshooting
+
+**Identity & Access Management**
+
+- Active Directory Domain Services deployment
+- Organizational Unit design (Tier-based model)
+- Security group design and nested group strategy
+- Role-Based Access Control (NTFS + SMB + AD)
+- Delegated Administration (ADUC Delegation Wizard)
+
+**Group Policy**
+
+- GPO creation, linking, and scoping
+- User Configuration vs Computer Configuration policy types
+- Item-Level Targeting for dynamic drive assignment
+- User Rights Assignment configuration
+
+**Security Hardening**
+
+- Tiered Administrative Model (Microsoft ESAE principle)
+- Logon restriction enforcement via GPO
+- Advanced Audit Policy configuration
+- Windows Defender Firewall enforcement
+- SMBv1 protocol hardening
+- Anonymous enumeration restriction
+
+**Troubleshooting & Validation**
+
+- `gpresult /r /scope computer`, `whoami /groups`, `klist purge`
+- Event Viewer — Security log (Event ID 4624, 4625, 4672)
+- Cross-host connectivity testing (`ping`, `Test-NetConnection`)
+- Live login testing per account tier
 
 ---
 
 ## 🚀 Current Status
 
-Sub-Lab Completed:
+**Completed (Sub-Lab 01–08):** Distributed lab environment with full AD, DHCP, RBAC, GPO, Tiered Admin Model, and Security Hardening baseline.
 
-- Virtualization Setup
-- Active Directory Deployment
-- DHCP & Network Redesign
-- File Server & RBAC
-- GPO Drive Mapping
+**In Progress (Sub-Lab 09):** Windows Event Forwarding — centralized log collection from FS01 to DC01.
 
-Next Steps:
+---
 
-- OU & Delegation Design
-- Security Hardening
-- Secondary Domain Controller
-- Backup & Recovery Simulation
+## 📁 Repository Structure
+
+```text
+enterprise-infrastructure-lab/
+├── README.md
+├── sublabs/
+│   ├── 01-virtualization-setup.md
+│   ├── 02-active-directory-deployment.md
+│   ├── 03-dhcp-network-redesign.md
+│   ├── 04-file-server-rbac.md
+│   ├── 05-gpo-drive-mapping.md
+│   ├── 06-tiered-admin-model.md
+│   ├── 07-security-hardening-tier-enforcement.md
+│   ├── 08-server-hardening-baseline.md
+│   └── 09-centralized-event-log-monitoring.md
+├── docs/
+│   ├── ad-structure.md
+│   ├── ip-design.md
+│   ├── rbac-design.md
+│   └── screenshots/
+│       ├── 01-virtualization/
+│       ├── 02-active-directory/
+│       ├── 03-dhcp-network/
+│       ├── 04-file-server-rbac/
+│       ├── 05-gpo-drive-mapping/
+│       ├── 06-tiered-admin-model/
+│       ├── 07-security-hardening-tier-enforcement/
+│       └── 08-server-hardening-baseline/
+```

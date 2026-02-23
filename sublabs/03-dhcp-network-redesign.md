@@ -31,13 +31,13 @@ To improve stability and realism, the architecture was redesigned:
 ### Final Physical Topology
 
 PC2 (Infrastructure Host)
-  └── DC01 (Domain Controller, DNS, DHCP)
+└── DC01 (Domain Controller, DNS, DHCP)
 
 LAN Direct Ethernet Connection
 
 PC1 (Application Host)
-  ├── FS01 (File Server)
-  └── WIN10 (Client)
+├── FS01 (File Server)
+└── WIN10 (Client)
 
 Network redesigned to:
 
@@ -59,7 +59,7 @@ Server Allocation:
 
 DC01 → 192.168.200.10 (Static)  
 FS01 → 192.168.200.20 (Static)  
-WIN10 → DHCP Assigned  
+WIN10 → DHCP Assigned
 
 This required:
 
@@ -72,25 +72,19 @@ This required:
 
 ## 📡 DHCP Deployment
 
-DHCP role hosted on:
-
-DC01 (192.168.200.10)
+DHCP Server: DC01 (192.168.200.10)
 
 Scope Configuration:
 
-Range:
-192.168.200.100 – 192.168.200.200  
+| Parameter   | Value                             |
+| ----------- | --------------------------------- |
+| Scope Name  | `LAN-LABS`                        |
+| Range       | 192.168.200.100 – 192.168.200.200 |
+| Subnet Mask | 255.255.255.0                     |
+| DNS Server  | 192.168.200.10                    |
+| Gateway     | Not configured (isolated LAN)     |
 
-Subnet Mask:
-255.255.255.0  
-
-DNS Server:
-192.168.200.10  
-
-Gateway:
-Not configured (isolated LAN)
-
-Scope activated and validated.
+Scope status: **Active** — confirmed via DHCP Manager on DC01.
 
 ---
 
@@ -98,11 +92,11 @@ Scope activated and validated.
 
 Performed the following validations:
 
-- ipconfig /renew on WIN10
-- Verified IP assignment from DHCP
-- Verified DNS resolution
+- `ipconfig /renew` on WIN10 — confirmed DHCP lease from 192.168.200.100–200 range
+- Verified IP assignment from DHCP scope `LAN-LABS`
+- Verified DNS resolution via `nslookup corp.local` returning 192.168.200.10
 - Verified domain authentication after IP migration
-- Verified cross-host ping
+- Verified cross-host ping (DC01 → FS01, DC01 → WIN10)
 - Confirmed FS01 reachable from WIN10
 
 Confirmed full functionality of:
@@ -124,11 +118,11 @@ Confirmed full functionality of:
 
 Troubleshooting involved:
 
-- Reviewing network adapter mode
-- Flushing DHCP leases
-- Restarting DHCP service
-- Validating DNS settings
-- Secure channel verification
+- Reviewing VirtualBox network adapter mode (NAT → Bridged)
+- Flushing DHCP leases on DC01
+- Restarting DHCP service via `net stop dhcpserver` / `net start dhcpserver`
+- Revalidating DNS settings on all VMs
+- Secure channel verification after token reissue
 
 ---
 
@@ -142,15 +136,27 @@ Troubleshooting involved:
 
 ---
 
+## 🏢 Enterprise Relevance
+
+In enterprise environments, DHCP is never served from a home router or unmanaged switch — it is always centralized on a Windows Server (or Linux equivalent) and integrated with DNS for dynamic name registration. This sub-lab replicates that model exactly.
+
+The IP scheme migration from a flat NAT `10.10.x.x` to a structured `192.168.200.0/24` network mirrors real-world infrastructure migrations that IT teams perform when redesigning legacy networks. The process of rebuilding DHCP scopes, revalidating DNS, and re-joining domain services is identical to what happens in production during IP scheme changes.
+
+The ability to operate an isolated internal network without a home router gateway also demonstrates understanding of network segmentation — a key security principle.
+
+---
+
 ## 🎯 Outcome
 
-Successfully implemented centralized DHCP service within a redesigned distributed network architecture.
+Successfully implemented centralized DHCP service (`LAN-LABS` scope, Active) within a redesigned distributed network architecture.
 
 The lab now operates on a stable, physical LAN-based enterprise topology with:
 
-- Centralized IP management
+- Centralized IP management (DHCP scope active on dc01.corp.local)
 - Integrated DNS & AD
 - Cross-host authentication
 - Improved infrastructure reliability
 
 This sub-lab demonstrates real-world network redesign and infrastructure migration practices.
+
+→ Continued in [Sub-Lab 04 – File Server & RBAC](./04-file-server-rbac.md)

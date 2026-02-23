@@ -2,18 +2,18 @@
 
 ## 📌 Objective
 
-Menerapkan baseline hardening pada server Tier1 (`FS01`) untuk mensimulasikan praktik keamanan enterprise modern.
+Apply a security hardening baseline to the Tier1 server (`FS01`) to simulate modern enterprise security practices.
 
-Cakupan utama:
+Scope of hardening:
 
 - Advanced audit logging
 - RDP access restriction
 - Firewall enforcement
 - SMB protocol hardening
 - Anonymous access restriction
-- Validasi kontrol keamanan melalui pengujian langsung
+- Security control validation through direct testing
 
-Sub-lab ini mengubah environment dari sekadar "functional infrastructure" menjadi secured and controlled infrastructure.
+This sub-lab transforms the environment from a "functional infrastructure" into a secured and controlled infrastructure.
 
 ---
 
@@ -26,33 +26,33 @@ Workstation: WIN10 (192.168.200.100)
 
 ---
 
-## 🧭 Arsitektur yang Digunakan
+## 🧭 Architecture Overview
 
-Tier Model:
+Tier Model applied:
 
 ```text
-Tier0 -> Domain Controller
+Tier0 -> Domain Controller (DC01)
 Tier1 -> Member Server (FS01)
 Tier2 -> Workstation (WIN10)
 ```
 
-GPO diterapkan melalui OU-based scoping.
+All policies are applied via OU-based GPO scoping.
 
-GPO utama yang dibuat:
+Primary GPO created:
 
 - `Tier1-Security-Baseline`
 
-Diterapkan ke:
+Linked to:
 
 - `OU=Tier1`
 
 ---
 
-## 🛠 Implementasi yang Dilakukan
+## 🛠 Implementation Steps
 
 ### 1) Advanced Audit Policy Configuration
 
-Menggunakan modern granular audit configuration.
+Configured granular audit logging using the modern Advanced Audit Policy.
 
 Path:
 
@@ -65,28 +65,28 @@ Computer Configuration
 -> Audit Policies
 ```
 
-Konfigurasi aktif:
+Audit settings enabled:
 
 Logon/Logoff:
 
-- Audit Logon -> Success + Failure
-- Audit Special Logon -> Success
+- Audit Logon → Success + Failure
+- Audit Special Logon → Success
 
 Account Logon:
 
-- Audit Credential Validation -> Success + Failure
+- Audit Credential Validation → Success + Failure
 
-Tambahan enforcement:
+Additional enforcement:
 
 - `Audit: Force audit policy subcategory settings` = Enabled
 
-Tujuan: memastikan Advanced Audit override legacy audit policy.
+Purpose: ensures Advanced Audit Policy overrides legacy audit settings.
 
 ---
 
 ### 2) RDP Restriction (Tier Enforcement)
 
-Pembatasan akses RDP sesuai Tier Model.
+Restricted RDP access to `FS01` in accordance with the Tier Model.
 
 Path:
 
@@ -95,44 +95,44 @@ User Rights Assignment
 -> Allow log on through Remote Desktop Services
 ```
 
-Isi:
+Accounts permitted:
 
 - `Administrators`
 - `Tier1-Server-Admins`
 
-`Deny` dikosongkan untuk menghindari override conflict.
+`Deny log on through Remote Desktop Services` was left as Not Defined to avoid override conflicts.
 
-Hasil validasi:
+Validation results:
 
 ```text
-User      | RDP ke FS01
+User      | RDP to FS01
 admin.t0  | YES
 admin.t1  | YES
 admin.t2  | NO
 HR/Finance| NO
 ```
 
-Verifikasi melalui `mstsc` dan Event ID `4624/4625`.
+Verified using `mstsc` and Event ID `4624`/`4625` in Event Viewer.
 
 ---
 
 ### 3) Firewall Enforcement
 
-Mengaktifkan Windows Defender Firewall pada Domain Profile.
+Enabled Windows Defender Firewall on the Domain Profile.
 
-Validasi:
+Validation:
 
-```text
+```powershell
 Get-NetFirewallProfile
 ```
 
-Hasil:
+Result:
 
-- Domain Profile -> Enabled: True
+- Domain Profile → Enabled: True
 
-RDP diuji:
+RDP port reachability tested from WIN10:
 
-```text
+```powershell
 Test-NetConnection 192.168.200.20 -Port 3389
 ```
 
@@ -140,58 +140,57 @@ Test-NetConnection 192.168.200.20 -Port 3389
 
 ### 4) SMB Hardening
 
-SMBv1 diperiksa dan dinonaktifkan (jika tersedia):
+SMBv1 was checked and disabled (if present):
 
-```text
+```powershell
 Get-WindowsFeature FS-SMB1
 Uninstall-WindowsFeature FS-SMB1
 ```
 
-Tujuan:
+Purpose:
 
-- Menghilangkan protokol legacy rentan (WannaCry class attack)
+- Eliminate the legacy SMBv1 protocol, which is vulnerable to WannaCry-class attacks
 
 ---
 
 ### 5) Restrict Anonymous Enumeration
 
-Mengaktifkan:
+Enabled the following policy:
 
 - `Network access: Do not allow anonymous enumeration of SAM accounts`
 
-Validasi:
+Validation:
 
-```text
+```cmd
 net view \\192.168.200.20
 ```
 
-Hasil:
+Result:
 
-- Anonymous access ditolak
-- Credential required
+- Anonymous access denied
+- Valid credentials required to enumerate shares
 
 ---
 
-## 🔍 Validasi Keamanan
+## 🔍 Security Validation
 
-Event Viewer:
+Event Viewer confirmed the following Security log entries:
 
 ```text
 Windows Logs -> Security
 ```
 
-Log berhasil tercatat:
+Events recorded:
 
-```text
-Event ID | Arti
-4624     | Successful logon
-4625     | Failed logon
-4672     | Special privilege logon
-```
+| Event ID | Meaning                 |
+| -------- | ----------------------- |
+| 4624     | Successful logon        |
+| 4625     | Failed logon attempt    |
+| 4672     | Special privilege logon |
 
 ---
 
-## 🧠 Prinsip Keamanan yang Diterapkan
+## 🧠 Security Principles Applied
 
 - Least Privilege
 - Tiered Administrative Model
@@ -202,26 +201,61 @@ Event ID | Arti
 
 ---
 
-## ✅ Hasil Akhir
+## ✅ Final Result
 
-Setelah sub-lab ini:
+After completing this sub-lab:
 
-- Server hanya dapat diakses oleh admin Tier1
-- Akses login tercatat dan dapat diaudit
-- Protokol legacy dinonaktifkan
-- Anonymous enumeration diblokir
-- Firewall aktif pada Domain profile
+- Server is accessible only by Tier1 administrators
+- All login activity is recorded and auditable via Event Viewer
+- Legacy SMBv1 protocol is disabled
+- Anonymous share enumeration is blocked
+- Windows Defender Firewall is active on the Domain Profile
 
-Infrastructure tidak hanya berjalan, tetapi:
+The infrastructure is not only functional, but:
 
-- Secure by design and validated through testing
+- Secure by design and validated through live testing
 
 ---
 
-## 🏢 Dampak terhadap Enterprise Simulation
+## ⚠ Challenges & Troubleshooting
 
-Sub-lab ini memposisikan lab sebagai:
+Several issues were encountered and resolved during implementation:
 
-- Simulasi enterprise-grade environment
-- Implementasi baseline hardening nyata
-- Model segmentasi akses berdasarkan tier
+- **RDP restriction required separate User Rights Assignment** — Setting `Allow log on through Remote Desktop Services` in GPO was independent from the `Allow log on locally` policy configured in Sub-Lab 07. Both had to be explicitly defined to ensure RDP access was also tier-restricted. Validated via `mstsc` from WIN10: `CORP\hr.staff` received _"The connection was denied because the user account is not authorized for remote login"_, while `admin.t1` connected successfully.
+- **Firewall verification needed separate testing** — After enabling Windows Defender Firewall on Domain Profile, `Get-NetFirewallProfile` confirmed `Enabled: True`, but actual port connectivity was tested separately using `Test-NetConnection 192.168.200.20 -Port 3389` from WIN10 to verify RDP port was reachable for authorized accounts.
+- **Audit Policy vs Legacy Audit Policy conflict** — Initially, legacy audit settings (under `Audit Policy`) overlapped with `Advanced Audit Policy Configuration`. Resolved by enabling _"Audit: Force audit policy subcategory settings"_ to ensure Advanced Audit overrides legacy settings. Confirmed by checking Event Viewer Security log for Event ID 4624, 4625, 4672.
+- **SMBv1 check returned "not installed"** — Running `Get-WindowsFeature FS-SMB1` on FS01 confirmed SMBv1 feature was not installed (Windows Server 2019 ships without it by default). `Uninstall-WindowsFeature FS-SMB1` was run as a validation step regardless.
+- **Anonymous enumeration test** — After enabling `Do not allow anonymous enumeration of SAM accounts`, ran `net view \\192.168.200.20` from WIN10 without credentials to confirm access was denied. Validated credential-required access behavior.
+
+Tools used for validation:
+
+- `Get-NetFirewallProfile` — verify firewall Domain Profile state
+- `Test-NetConnection 192.168.200.20 -Port 3389` — validate RDP port reachability
+- `mstsc` — test RDP login per account tier
+- `Get-WindowsFeature FS-SMB1` — check SMBv1 installation status
+- `net view \\192.168.200.20` — test anonymous enumeration
+- Event Viewer → Security log — verify audit events 4624/4625/4672
+
+---
+
+## 🛠 Skills Demonstrated
+
+- Advanced Audit Policy configuration (Logon/Logoff, Credential Validation)
+- RDP access restriction via User Rights Assignment in GPO
+- Windows Defender Firewall enforcement on Domain Profile
+- SMBv1 protocol hardening (detect and disable legacy protocol)
+- Anonymous SAM enumeration restriction
+- Security control validation using Event Viewer (Event ID 4624, 4625, 4672)
+- PowerShell-based network security testing (`Test-NetConnection`, `Get-NetFirewallProfile`)
+- GPO-based security baseline deployment on member servers
+- Attack surface reduction methodology
+
+---
+
+## 🏢 Enterprise Simulation Impact
+
+This sub-lab positions the lab as:
+
+- An enterprise-grade environment simulation
+- A real baseline hardening implementation
+- A tier-based access segmentation model

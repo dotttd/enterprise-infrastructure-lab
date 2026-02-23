@@ -48,13 +48,13 @@ To resolve performance bottlenecks, the lab architecture was redesigned into a d
 ### Final Physical Design
 
 PC2 (Infrastructure Host)
-  └── DC01 (Domain Controller)
+└── DC01 (Domain Controller)
 
 LAN Direct Connection (Ethernet Cable)
 
 PC1 (Application Host)
-  ├── FS01 (File Server)
-  └── WIN10 (Domain Client)
+├── FS01 (File Server)
+└── WIN10 (Domain Client)
 
 This approach:
 
@@ -72,9 +72,9 @@ VirtualBox was used as the hypervisor.
 ### DC01 Configuration
 
 - Installed on dedicated physical host (PC2)
-- Allocated optimized RAM
-- Bridged network adapter to physical LAN interface
-- Configured static IP
+- RAM allocated separately from PC1 workload to prevent contention
+- Bridged network adapter (Intel PRO/1000 MT) to physical LAN interface
+- Configured static IP: 192.168.200.10
 
 ### FS01 & WIN10 Configuration
 
@@ -112,6 +112,16 @@ The final implementation uses:
 
 ---
 
+## 🏢 Enterprise Relevance
+
+In production enterprise environments, Domain Controllers are always isolated on dedicated hardware or dedicated VMs with reserved resources — exactly what this redesign simulates. Running a DC on shared, resource-contended hardware is a known reliability risk that leads to Kerberos authentication failures and AD replication issues in real deployments.
+
+The migration from a single-host NAT topology to a dedicated physical LAN also mirrors real-world infrastructure evolution: many small-to-medium companies begin with flat virtualized environments and progressively redesign as the environment grows.
+
+This sub-lab demonstrates the engineering judgment to recognize architectural limitations and redesign proactively — a critical skill for IT Infrastructure and Systems Engineering roles.
+
+---
+
 ## 🎯 Outcome
 
 Successfully established a stable distributed virtualization foundation capable of supporting:
@@ -121,4 +131,8 @@ Successfully established a stable distributed virtualization foundation capable 
 - File Server with RBAC
 - Group Policy automation
 
+Validated cross-host connectivity: DC01 (192.168.200.10) successfully pinged FS01 (192.168.200.20) and WIN10 (192.168.200.100) with 0% packet loss.
+
 This redesign reflects real-world infrastructure engineering practices, including root cause analysis and architectural adjustment under hardware limitations.
+
+→ Continued in [Sub-Lab 02 – Active Directory Deployment](./02-active-directory-deployment.md)

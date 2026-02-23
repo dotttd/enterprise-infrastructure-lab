@@ -12,7 +12,7 @@ This sub-lab transforms the infrastructure from standalone Windows machines into
 
 Domain Controller: DC01  
 IP Address: 192.168.200.10  
-Domain Name: corp.local  
+Domain Name: corp.local
 
 Deployment performed in distributed architecture:
 
@@ -52,7 +52,9 @@ Configured:
 - Verified forward lookup zone for corp.local
 - Tested resolution using:
 
+```cmd
 nslookup corp.local
+```
 
 DNS successfully resolves internal hostnames.
 
@@ -84,7 +86,9 @@ Validated:
 - Kerberos ticket issuance
 - Group membership validation via:
 
+```cmd
 whoami /groups
+```
 
 Tested secure channel trust between client and DC.
 
@@ -102,11 +106,11 @@ Several issues were encountered and resolved:
 
 Tools used for troubleshooting:
 
-- ipconfig /all
-- nslookup
-- gpresult /r
-- klist purge
-- net use * /delete
+- `ipconfig /all`
+- `nslookup`
+- `gpresult /r`
+- `klist purge`
+- `net use * /delete`
 
 ---
 
@@ -120,13 +124,25 @@ Tools used for troubleshooting:
 
 ---
 
+## 🏢 Enterprise Relevance
+
+Active Directory is the identity backbone of virtually every Microsoft-based enterprise environment. The 4-role deployment on a single DC (AD DS + DNS + DHCP + File and Storage Services — all confirmed active in Server Manager Dashboard) reflects a realistic small-business or branch-office architecture where infrastructure consolidation is necessary.
+
+Domain join of WIN10 (`DESKTOP-BCUVHHB.corp.local`) demonstrates the foundational capability that enables centralized user management, policy enforcement, and auditable access control — all required in regulated and enterprise environments.
+
+Cross-host authentication across two physical machines (PC1 and PC2) over a dedicated LAN validates the robustness of the Kerberos authentication model without relying on any virtualization network shortcuts.
+
+---
+
 ## 🎯 Outcome
 
 Successfully deployed a fully functional Active Directory environment with:
 
 - Centralized authentication
 - DNS integration
-- Cross-host domain validation
+- Cross-host domain validation (`DESKTOP-BCUVHHB.corp.local` confirmed)
 - Distributed infrastructure stability
 
 This sub-lab established the identity backbone for all subsequent implementations including DHCP, File Server, RBAC, and Group Policy automation.
+
+→ Continued in [Sub-Lab 03 – DHCP & Network Redesign](./03-dhcp-network-redesign.md)

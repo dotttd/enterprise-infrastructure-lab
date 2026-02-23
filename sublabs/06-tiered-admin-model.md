@@ -2,14 +2,14 @@
 
 ## 📌 Objective
 
-Implement Tiered Administrative Model (Tier 0/1/2) untuk memisahkan hak akses administrator berdasarkan tingkat sensitivitas sistem.
+Implement a Tiered Administrative Model (Tier 0/1/2) to separate administrator privileges based on system sensitivity level.
 
-Fokus utama:
+Key objectives:
 
-- Mencegah penggunaan Domain Admin untuk pekerjaan sehari-hari
-- Menerapkan principle of least privilege
-- Mengimplementasikan delegated administration untuk helpdesk
-- Membuat boundary antara Domain Controller, Member Server, dan Workstation
+- Prevent the use of Domain Admin accounts for day-to-day operations
+- Enforce the principle of least privilege
+- Implement delegated administration for helpdesk staff
+- Establish clear boundaries between Domain Controllers, Member Servers, and Workstations
 
 ---
 
@@ -24,7 +24,7 @@ Workstation: WIN10 (192.168.200.100)
 
 ## 🧱 OU Structure Redesign (Tier Model)
 
-Struktur OU diubah menjadi:
+The OU structure was redesigned into the following Tier-based hierarchy:
 
 ```text
 corp.local
@@ -51,42 +51,42 @@ corp.local
 |   |-- Tier2-Helpdesk-Admins
 ```
 
-Perpindahan computer objects:
+Computer objects relocated:
 
-- FS01 ke `Tier1\Servers`
-- WIN10 ke `Tier2\Workstations`
+- `FS01` moved to `Tier1\Servers`
+- `WIN10` moved to `Tier2\Workstations`
 
 ---
 
 ## 👤 Dedicated Administrative Accounts
 
-Akun admin terpisah dari user bisnis:
+Administrative accounts are kept separate from business user accounts:
 
 - `admin.t0`: Domain-level administration
 - `admin.t1`: Member server administration
 - `admin.t2`: Helpdesk / password reset
 
-Semua akun admin ditempatkan di OU `Admin`.
+All admin accounts are placed under the `Admin` OU.
 
 ---
 
 ## 🔐 Security Groups (Role-Based Access)
 
-Security group dengan Global Scope:
+Security groups created with Global scope:
 
 - `Tier0-Domain-Admins`: Domain-level privilege
 - `Tier1-Server-Admins`: Member server local admin
 - `Tier2-Helpdesk-Admins`: Delegated helpdesk privilege
 
-Group disimpan di OU `Groups`.
+All groups are stored in the `Groups` OU.
 
 ---
 
 ## 🧩 Nested Group for Domain Admin (Tier0)
 
-Best practice: tidak menambahkan user langsung ke `Domain Admins`.
+Best practice: users are never added directly to `Domain Admins`.
 
-Nested group:
+Nested group chain:
 
 ```text
 admin.t0
@@ -94,47 +94,47 @@ admin.t0
      -> Domain Admins
 ```
 
-Hasil:
+Result:
 
-- `admin.t0` mendapatkan privilege Domain Admin
-- Tidak ada user bisnis menjadi Domain Admin
+- `admin.t0` receives Domain Admin privilege through group nesting
+- No business user account has Domain Admin membership
 
 ---
 
 ## 🛠 Delegated Administration (Tier2)
 
-Delegation pada OU `Users` diberikan ke:
+Delegation on the `Users` OU was granted to:
 
 - `Tier2-Helpdesk-Admins`
 
-Hak yang diberikan:
+Rights delegated:
 
 - Reset user password
 - Force password change at next logon
 - Unlock account
 
-Validasi:
+Validation results:
 
-- `admin.t2` dapat reset password HR/Finance
-- `admin.t2` tidak dapat modify `Domain Admins`
-- `admin.t2` tidak dapat membuat OU baru
-- `admin.t2` tidak dapat mengedit GPO
-- Helpdesk tidak bisa login ke Domain Controller
+- `admin.t2` can reset passwords for HR/Finance users
+- `admin.t2` cannot modify `Domain Admins` group
+- `admin.t2` cannot create new OUs
+- `admin.t2` cannot edit GPOs
+- Helpdesk accounts cannot log into the Domain Controller
 
 ---
 
 ## 🖥 Server-Level Administration (Tier1)
 
-Pada `FS01`, group `Tier1-Server-Admins` ditambahkan ke:
+On `FS01`, the group `Tier1-Server-Admins` was added to:
 
-- Local Administrators (FS01)
+- Local Administrators group (FS01)
 
-Dampak:
+Effect:
 
-- `admin.t1` dapat login ke `FS01`
-- `admin.t1` memiliki local admin rights di `FS01`
-- `admin.t1` tidak memiliki Domain Admin privilege
-- `admin.t1` tidak dapat login ke `DC01`
+- `admin.t1` can log into `FS01`
+- `admin.t1` has local admin rights on `FS01`
+- `admin.t1` does not have Domain Admin privilege
+- `admin.t1` cannot log into `DC01`
 
 ---
 
@@ -152,7 +152,7 @@ HR User     | NO       | NO         | NO         | NO
 
 ## ✅ Security Model Achieved
 
-Lab ini berhasil mengimplementasikan:
+This sub-lab successfully implemented:
 
 - Tiered Administrative Model
 - Least Privilege Principle
@@ -165,20 +165,53 @@ Lab ini berhasil mengimplementasikan:
 
 ## 🧠 Key Learning Outcomes
 
-- OU bukan untuk privilege, hanya untuk organization dan GPO scope
-- Permission harus diberikan via group, bukan langsung ke user
-- Domain Admin tidak boleh digunakan untuk daily operation
-- Helpdesk harus delegated, bukan privileged
-- Member Server admin tidak boleh login Domain Controller
+- OUs are not for privilege enforcement — they are for organization and GPO scoping
+- Permissions must be assigned via groups, never directly to individual users
+- Domain Admin accounts must not be used for daily operations
+- Helpdesk access should be delegated, not privileged
+- Member Server administrators must not have access to Domain Controllers
+
+---
+
+## ⚠ Challenges & Troubleshooting
+
+Several issues were encountered and resolved during implementation:
+
+- **Group membership not immediately effective** — After adding `admin.t2` to `Tier2-Helpdesk-Admins`, login attempts still failed until the Kerberos token was refreshed. Required full logoff/logon cycle or `klist purge` to force token update.
+- **admin.t2 login blocked correctly on DC01** — Validated that the "sign-in method you're trying to use isn't allowed" message appeared when `admin.t2` attempted to log into DC01 directly. This confirmed logon restriction was effective even without an explicit GPO on Domain Controllers OU.
+- **admin.t2 Access Denied on AD group modification** — When `admin.t2` attempted to modify `Tier2-Helpdesk-Admins` group membership via ADUC, received: _"You do not have permission to modify the group corp.local/Groups/Tier2-Helpdesk-Admins"_. Delegation scope was correct — helpdesk is limited to password reset only.
+- **Nested group privilege not immediately visible** — After nesting `admin.t0` → `Tier0-Domain-Admins` → `Domain Admins`, privilege propagation required replication. Validated with `whoami /groups` after relogon.
+- **FS01 local admin verification** — Used `lusrmgr.msc` on FS01 to confirm `Tier1-Server-Admins` was correctly added to local Administrators group. Validated with `whoami /groups` showing `CORP\Tier1-Server-Admins` in session token.
+
+Tools used for troubleshooting:
+
+- `whoami /groups` — verify active group membership in session token
+- `klist purge` — force Kerberos ticket refresh
+- `gpresult /r` — confirm GPO application
+- `lusrmgr.msc` — verify local group membership on FS01
+
+---
+
+## 🛠 Skills Demonstrated
+
+- Organizational Unit (OU) design and computer object relocation
+- Tiered Administrative Model implementation (Tier 0 / 1 / 2)
+- Dedicated administrative account creation and separation
+- Nested security group strategy (user → role group → privileged group)
+- Delegated Administration configuration via ADUC Delegation Wizard
+- Principle of Least Privilege enforcement through group-based access
+- Kerberos token behavior and group membership propagation
+- Local Administrators group management on member servers
+- Access validation using `whoami /groups` and live login testing
 
 ---
 
 ## 🏢 Enterprise Relevance
 
-Model ini menyerupai Microsoft ESAE / Red Forest principle secara simplified.
+This model mirrors the Microsoft ESAE (Enhanced Security Admin Environment) / Red Forest principle in a simplified lab context.
 
-Desain ini mencegah:
+This design prevents:
 
-- Privilege escalation
-- Credential theft lateral movement
-- Overprivileged account misuse
+- Privilege escalation via overprivileged accounts
+- Credential theft lateral movement between tiers
+- Overprivileged account misuse in daily operations

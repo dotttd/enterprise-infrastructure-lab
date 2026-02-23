@@ -1,119 +1,115 @@
-﻿# IP Design
+﻿# RBAC Design
 
-## Tujuan
+## Purpose
 
-This document describes the IP addressing and network design used in the distributed enterprise lab environment.
+This document describes the Role-Based Access Control (RBAC) model implemented across the enterprise lab environment.
 
-The lab was redesigned from a single-host NAT-based topology into a multi-host physical LAN architecture to improve performance and better simulate a real enterprise network.
+The RBAC design covers three distinct layers:
 
-The objectives of the IP design are:
-
-- Provide stable static addressing for infrastructure servers
-- Centralize IP management using internal DHCP
-- Maintain isolation from home network
-- Ensure proper DNS and domain authentication functionality
+1. **File System Access** — department-based folder permissions on FS01 (Sub-Lab 04)
+2. **Group Policy Access** — automated drive assignment by security group (Sub-Lab 05)
+3. **Administrative Access** — tiered privilege separation for administrative accounts (Sub-Lab 06–08)
 
 ---
 
-## Network Overview
+## Layer 1 – File System Access (FS01)
 
-Network Address: 192.168.200.0/24  
-Subnet Mask: 255.255.255.0  
+### Share Structure
 
-This network is dedicated to the lab environment and connected via direct Ethernet cable between two physical machines.
+Hidden administrative shares are used (`$` suffix) to prevent casual browsing.
 
-No external gateway is configured as the lab operates in an isolated internal network.
+| Share Name | UNC Path          | Department         |
+| ---------- | ----------------- | ------------------ |
+| `HR$`      | `\\FS01\HR$`      | HR Department      |
+| `Finance$` | `\\FS01\Finance$` | Finance Department |
+| `IT$`      | `\\FS01\IT$`      | IT Department      |
 
----
+### Permission Matrix
 
-## Physical Topology
+NTFS permissions are assigned via Security Groups only — no direct user assignments.
 
-PC2 (Infrastructure Host)
-  └── DC01 (Domain Controller)
+| Security Group  | HR$          | Finance$     | IT$          |
+| --------------- | ------------ | ------------ | ------------ |
+| `HR-Staff`      | Read/Write   | ❌ No Access | ❌ No Access |
+| `Finance-Staff` | ❌ No Access | Read/Write   | ❌ No Access |
+| `IT-Admin`      | Read/Write   | Read/Write   | Read/Write   |
 
-LAN Direct Connection (Ethernet Cable)
+Share permissions: `Everyone: Read` (access controlled at NTFS layer).
 
-PC1 (Application Host)
-  ├── FS01 (File Server)
-  └── WIN10 (Domain Client)
+### Validation
 
-The lab does not rely on a home router for internal communication.
-
----
-
-## Server IP Allocation
-
-DC01  
-IP Address: 192.168.200.10  
-Role: Domain Controller, DNS, DHCP  
-Configuration: Static  
-
-FS01  
-IP Address: 192.168.200.20  
-Role: File Server  
-Configuration: Static  
-
-WIN10  
-IP Address: Assigned dynamically  
-Configuration: DHCP  
+- `hr.staff` → access confirmed on `HR$`, denied on `Finance$` with error: _"Windows cannot access \\192.168.200.20\Finance$"_
+- IT admin → simultaneously accessed `IT$`, `HR$`, and `Finance$`
 
 ---
 
-## DHCP Configuration
+## Layer 2 – Drive Mapping (GPO)
 
-DHCP Server: DC01  
+Network drives are automatically mapped based on security group membership using GPO Preferences with Item-Level Targeting.
 
-Scope Range:  
-192.168.200.100 – 192.168.200.200  
+| Security Group  | Drive Letter     | Label               | Target Share      |
+| --------------- | ---------------- | ------------------- | ----------------- |
+| `HR-Staff`      | `H:`             | HR DRIVE            | `\\FS01\HR$`      |
+| `Finance-Staff` | `F:`             | Finance DRIVE       | `\\FS01\Finance$` |
+| `IT-Admin`      | `H:`, `F:`, `I:` | HR/Finance/IT DRIVE | All shares        |
 
-Subnet Mask:  
-255.255.255.0  
+GPO Name: `Drive Mapping – Departement`  
+GPO linked to: `OU=Users`  
+GPO type: User Configuration
 
-DNS Server:  
-192.168.200.10  
-
-Gateway:  
-Not configured (isolated LAN environment)
-
----
-
-## DNS Design
-
-DNS is integrated with Active Directory and hosted on DC01.
-
-All clients use:
-
-Preferred DNS: 192.168.200.10  
-
-DNS is responsible for:
-
-- Resolving corp.local domain
-- Resolving server hostnames (DC01, FS01)
-- Supporting Kerberos authentication
+Item-Level Targeting uses Security Group membership for drive scoping.
 
 ---
 
-## Design Decisions
+## Layer 3 – Administrative Access (Tiered Model)
 
-- Static IP used for all infrastructure servers to prevent dependency on DHCP for critical services
-- DHCP reserved for client devices only
-- Internal-only network eliminates external interference
-- Dedicated LAN improves performance and stability
-- Segmented infrastructure and client roles across physical hosts
+Administrative access is separated into three tiers to enforce least privilege.
+
+### Tier Definitions
+
+| Tier   | Account    | Group                                   | Access Scope                    |
+| ------ | ---------- | --------------------------------------- | ------------------------------- |
+| Tier 0 | `admin.t0` | `Tier0-Domain-Admins` → `Domain Admins` | Domain Controller only          |
+| Tier 1 | `admin.t1` | `Tier1-Server-Admins`                   | Member Servers (FS01)           |
+| Tier 2 | `admin.t2` | `Tier2-Helpdesk-Admins`                 | Password reset on Users OU only |
+
+### Access Validation Matrix
+
+| Account         | Login DC01 | Login FS01 | RDP FS01 | Reset Password | Domain Admin |
+| --------------- | ---------- | ---------- | -------- | -------------- | ------------ |
+| `admin.t0`      | ✅ YES     | ✅ YES     | ✅ YES   | ✅ YES         | ✅ YES       |
+| `admin.t1`      | ❌ NO      | ✅ YES     | ✅ YES   | ❌ NO          | ❌ NO        |
+| `admin.t2`      | ❌ NO      | ❌ NO      | ❌ NO    | ✅ YES         | ❌ NO        |
+| `hr.staff`      | ❌ NO      | ❌ NO      | ❌ NO    | ❌ NO          | ❌ NO        |
+| `finance.staff` | ❌ NO      | ❌ NO      | ❌ NO    | ❌ NO          | ❌ NO        |
+
+### Enforcement Mechanisms
+
+- **Logon restriction** — GPO `Tier1-Logon-Restriction` linked to `OU=Tier1`, User Rights Assignment: `Allow log on locally` and `Allow log on through Remote Desktop Services` scoped to Tier1 accounts only
+- **Delegation** — ADUC Delegation Wizard scoped to `OU=Users`, rights limited to password reset
+- **Nested group chain** — `admin.t0 → Tier0-Domain-Admins → Domain Admins`
+- **Local admin** — `Tier1-Server-Admins` added to Local Administrators group on FS01
 
 ---
 
-## Evolution of Design
+## Security Baseline (FS01)
 
-Initial lab design used:
+Applied via GPO `Tier1-Security-Baseline` linked to `OU=Tier1`:
 
-10.10.x.x network with NAT-based VirtualBox internal networking.
+| Control                | Configuration                                                 | Status      |
+| ---------------------- | ------------------------------------------------------------- | ----------- |
+| Advanced Audit Logging | Logon Success/Failure (Event 4624/4625), Special Logon (4672) | ✅ Enabled  |
+| RDP Access             | Restricted to `Administrators` + `Tier1-Server-Admins`        | ✅ Enforced |
+| Windows Firewall       | Domain Profile enabled                                        | ✅ Active   |
+| SMBv1                  | Feature not installed                                         | ✅ Disabled |
+| Anonymous Enumeration  | `Do not allow anonymous enumeration of SAM accounts`          | ✅ Enabled  |
 
-After encountering performance and resource limitations, the lab was redesigned to:
+---
 
-- Use dedicated LAN between physical machines
-- Migrate IP scheme to 192.168.200.x
-- Rebuild DHCP scope
-- Improve cross-host reliability
+## Design Principles
 
-This redesign reflects real-world infrastructure troubleshooting and architectural decision-making.
+- All permissions assigned through Security Groups — never directly to individual users
+- Deny-based restrictions avoided in favor of Allow-only model to prevent override conflicts
+- Tier separation enforced through both group structure and Group Policy
+- Administrative accounts are separate from business user accounts
+- Domain Admin accounts are never used for day-to-day operations
