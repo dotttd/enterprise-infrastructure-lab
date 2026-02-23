@@ -2,15 +2,14 @@
 
 ## 📌 Objective
 
-Mengimplementasikan Windows Event Forwarding (WEF) agar DC01 dapat mengumpulkan event log
-dari FS01 secara terpusat.
+Implement Windows Event Forwarding (WEF) to centralize security event collection from FS01 into DC01's Forwarded Events log, enabling centralized monitoring without direct server access.
 
-Fokus utama:
+Key objectives:
 
-- DC01 sebagai **Collector** (mengumpulkan log)
-- FS01 sebagai **Source** (mengirimkan log)
-- Memanfaatkan WinRM dan Event Subscriptions
-- Validasi melalui Event Viewer di DC01
+- DC01 as **Collector** — pulls Security events from FS01
+- FS01 as **Event Source** — exposes Security log via WinRM
+- Validate Event IDs 4624, 4625, 4672 appear in DC01 Forwarded Events
+- Scalable design applicable to additional Tier 1 servers
 
 ---
 
@@ -23,372 +22,261 @@ Workstation: WIN10 (192.168.200.100)
 
 ---
 
-## 🧭 Arsitektur WEF
+## 🏛 WEF Architecture
 
 ```text
-FS01 (Source)                    DC01 (Collector)
-+-----------------+              +-----------------+
-| WinRM Service   | ---push----> | Event Collector |
-| (port 5985)     |              | Service         |
-| Forwards logs   |              | Subscription    |
-+-----------------+              +-----------------+
+DC01 (Collector)                     FS01 (Event Source)
++-------------------------+          +----------------------+
+| wecsvc (Event Collector)|  <pull-- | WinRM Service :5985  |
+| Forwarded Events Log    |  admin.t1| Security Event Log   |
+| Subscription:           |          | Event 4624/4625/4672 |
+|   FS01-Security-Events  |          +----------------------+
++-------------------------+
 ```
 
-Model yang digunakan: **Source-Initiated (Push)**
+Model used: **Collector-Initiated (Pull)**
 
-- FS01 secara aktif mendorong event ke DC01
-- DC01 mendaftarkan komputer yang diizinkan mengirim via GPO
-- Tidak memerlukan koneksi inbound dari DC01 ke FS01
+- DC01 periodically polls FS01 via WinRM using `CORP\admin.t1` credentials
+- FS01 does not need to reach DC01 (no push, no WEC endpoint required on DC01)
+- Subscription mode: Custom Pull, 30-second delivery interval
 
 ---
 
-## 🛠 Setup Langkah per Langkah
+## 🛠 Implementation
 
-### [ DC01 ] — Konfigurasi Collector
+### DC01 — Collector Setup
 
-#### 1) Aktifkan Windows Event Collector Service
-
-Jalankan di DC01 (cmd/PowerShell sebagai Administrator):
+Windows Event Collector service activated and configured:
 
 ```cmd
 wecutil qc /q
 ```
 
-Output yang diharapkan:
+![wecsvc Running on DC01](../docs/screenshots/09-centralized-event-log-monitoring/01-wecsvc-running-dc01.png)
 
-```
-The service startup mode will be changed to Delay-Start.
-Would you like to proceed (Y/N)?
-```
+Subscription `FS01-Security-Events` created via Event Viewer GUI:
 
-Ketik `Y`. Service `Windows Event Collector` akan diaktifkan.
+- Type: Collector Initiated
+- Source: `FS01.corp.local`
+- Events: Security log, EventID 4624, 4625, 4672
+- Credentials: `CORP\admin.t1`
+- Configuration: Custom Pull, 30-second latency, `ReadExistingEvents: true`
 
-Verifikasi:
+Subscription XML deployed via:
 
 ```cmd
-sc query wecsvc
+wecutil cs C:\wef-ci.xml
 ```
 
-Pastikan `STATE` = `RUNNING`.
+![Subscription Runtime Status Active](../docs/screenshots/09-centralized-event-log-monitoring/07-subscription-runtime-status-active-gui.png)
 
 ---
 
-#### 2) Tambahkan DC01 ke Group "Event Log Readers" (opsional tapi direkomendasikan)
+### GPO — WEF-Source-Configuration (Tier1 OU)
 
-Di DC01, masuk ADUC → FS01 computer account tidak perlu diubah, tapi pastikan
-`NETWORK SERVICE` dari DC01 bisa baca event FS01.
+GPO linked to `corp.local/Tier1`, applied to FS01:
 
----
+| Setting                               | Value                                                                         |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| Configure target Subscription Manager | `Server=http://DC01.corp.local:5985/wsman/SubscriptionManager/WEC,Refresh=60` |
+| Event Log Readers (Restricted Groups) | `NETWORK SERVICE` added as member                                             |
 
-#### 3) Buat Event Subscription di DC01
+![GPO WEF-Source-Configuration Linked to Tier1](../docs/screenshots/09-centralized-event-log-monitoring/02-gpo-wef-source-configuration-linked-tier1.png)
 
-Buka **Event Viewer → Subscriptions → klik kanan → Create Subscription**
-
-Konfigurasi:
-
-| Setting               | Value                                                    |
-| --------------------- | -------------------------------------------------------- |
-| Subscription Name     | `FS01-Security-Events`                                   |
-| Subscription Type     | `Source computer initiated`                              |
-| Computer Groups       | `Tier1-Server-Admins` atau buat group baru `WEF-Sources` |
-| Events to Collect     | Security logs, Event ID 4624, 4625, 4672                 |
-| Delivery Optimization | `Normal`                                                 |
-
-Atau via PowerShell / wecutil (lihat bagian troubleshooting).
+![GPO Subscription Manager URL Setting](../docs/screenshots/09-centralized-event-log-monitoring/03-gpo-subscription-manager-url.png)
 
 ---
 
-### [ FS01 ] — Konfigurasi Source
+### FS01 — Source Configuration
 
-#### 4) Aktifkan WinRM di FS01
+| Configuration                          | Details                                   |
+| -------------------------------------- | ----------------------------------------- |
+| WinRM                                  | Active, port 5985, HTTP listener          |
+| Firewall — Windows Remote Management   | Enabled — Domain profile, Inbound         |
+| Firewall — Remote Event Log Management | Enabled — Inbound (RPC, NP-In, RPC-EPMAP) |
+| Local group: Event Log Readers         | `CORP\DC01$`, `NETWORK SERVICE`           |
+| Local group: Remote Management Users   | `CORP\DC01$`                              |
+| Local group: Administrators            | `CORP\Tier1-Server-Admins`                |
 
-Jalankan di FS01 (cmd/PowerShell sebagai Administrator):
+![WinRM Listener FS01 Port 5985](../docs/screenshots/09-centralized-event-log-monitoring/04-winrm-listener-fs01.png)
 
-```cmd
-winrm quickconfig -q
-```
+![Remote Management Users DC01$ Member](../docs/screenshots/09-centralized-event-log-monitoring/05-remote-management-users-dc01-fs01.png)
 
-Output yang diharapkan:
-
-```
-WinRM service is already running on this machine.
-WinRM is already set up for remote management on this computer.
-```
-
-Verifikasi:
-
-```cmd
-winrm enumerate winrm/config/listener
-```
-
-Pastikan ada listener di port **5985** (HTTP) atau **5986** (HTTPS).
+![Firewall WinRM and Remote Event Log Enabled](../docs/screenshots/09-centralized-event-log-monitoring/06-firewall-winrm-remote-eventlog-fs01.png)
 
 ---
 
-#### 5) Tambahkan DC01 ke Network Service di FS01
+## 🔍 Validation Results
 
-Di FS01, tambahkan `NETWORK SERVICE` dari DC01 agar bisa baca Security log:
+### Subscription Status (DC01)
 
-```cmd
-wevtutil gl Security
+```
+Subscription: FS01-Security-Events
+RunTimeStatus: Active
+LastError: 0
+EventSources:
+    FS01.corp.local
+        RunTimeStatus: Active
+        LastError: 0
 ```
 
-Lihat `channelAccess` — pastikan `NETWORK SERVICE` memiliki read access.
+![wecutil gr Active LastError 0](../docs/screenshots/09-centralized-event-log-monitoring/08-wecutil-gr-active-lasterror-0.png)
 
-Jika belum:
+![wecutil gs Subscription Config](../docs/screenshots/09-centralized-event-log-monitoring/15-wecutil-gs-subscription-config-pull-admin-t1.png)
 
-```cmd
-wevtutil sl Security /ca:"O:BAG:SYD:(A;;0xf0005;;;SY)(A;;0x5;;;BA)(A;;0x1;;;S-1-5-32-573)(A;;0x1;;;NS)"
-```
+### Forwarded Events (DC01)
+
+| Event ID | Description                 | Source Computer |
+| -------- | --------------------------- | --------------- |
+| 4624     | Successful logon            | FS01.corp.local |
+| 4625     | Failed logon                | FS01.corp.local |
+| 4672     | Special privileges assigned | FS01.corp.local |
+
+Total events forwarded: **1,740 events** confirmed in DC01 Forwarded Events log.
+
+![Forwarded Events Overview 1740 Events from FS01](../docs/screenshots/09-centralized-event-log-monitoring/09-forwarded-events-overview-1740-events-fs01.png)
+
+![Event 4624 Logon Detail from FS01](../docs/screenshots/09-centralized-event-log-monitoring/10-event-4624-logon-detail-fs01.png)
+
+![Event 4625 Failed Logon hr.staff from FS01](../docs/screenshots/09-centralized-event-log-monitoring/11-event-4625-failed-logon-hr-staff-fs01.png)
+
+![Event 4672 Special Privilege admin.t1 from FS01](../docs/screenshots/09-centralized-event-log-monitoring/14-event-4672-special-privilege-admin-t1-fs01.png)
 
 ---
 
-### [ GPO ] — Konfigurasi via Group Policy (Cara Terbaik)
+## ⚠ Challenges & Troubleshooting
 
-Ini adalah cara yang paling scalable dan enterprise-grade.
+This sub-lab required extensive troubleshooting before WEF functioned correctly. Issues are documented in order of discovery:
 
-#### 6) Buat GPO untuk mengaktifkan WinRM di Source (FS01)
+---
 
-Di DC01 → Group Policy Management → buat GPO baru:
+**1. `wef\storage` folder missing — Ghost subscriptions (Error 0x2)**
 
-Nama: `WEF-Source-Configuration`
-Link ke: `OU=Tier1` (tempat FS01 berada)
+Every subscription became a ghost (registered in registry but missing backing file) because `C:\Windows\System32\wef\storage\` was never created by `wecutil qc /q`. Required manual folder creation before subscriptions could be persisted:
 
-Konfigurasi dalam GPO:
-
-**a) Aktifkan WinRM Service:**
-
-```
-Computer Configuration
-→ Preferences
-→ Control Panel Settings
-→ Services
-→ New Service
-  - Service Name: WinRM
-  - Startup Type: Automatic
-  - Service Action: Start service
-```
-
-**b) Tambahkan DC01's MACHINE ACCOUNT ke channel access FS01:**
-
-```
-Computer Configuration
-→ Policies
-→ Administrative Templates
-→ Windows Components
-→ Event Forwarding
-→ Configure target Subscription Manager
-  - Enabled
-  - Value: Server=http://DC01.corp.local:5985/wsman/SubscriptionManager/WEC,Refresh=60
-```
-
-> ⚠️ Ganti `DC01.corp.local` dengan FQDN DC01 kamu. Bisa cek dengan `nslookup DC01`.
-
-**c) Tambahkan NETWORK SERVICE ke Event Log Readers:**
-
-```
-Computer Configuration
-→ Policies
-→ Windows Settings
-→ Security Settings
-→ Restricted Groups
-→ Add Group: "Event Log Readers"
-  → Members: NETWORK SERVICE
+```cmd
+mkdir C:\Windows\System32\wef\storage
 ```
 
 ---
 
-## 🔥 Troubleshooting — Masalah Umum WEF
+**2. GPO Subscription Manager URL pointed to wrong host**
 
-### ❌ Problem 1: Subscription menampilkan "Error" atau "Retrying"
-
-**Cek di FS01:**
-
-```cmd
-winrm id
-```
-
-Kalau error → WinRM belum running.
-
-```cmd
-sc query winrm
-```
-
-Start jika belum:
-
-```cmd
-net start winrm
-```
+The GPO `WEF-Source-Configuration` was configured with `192.168.200.20` (FS01's own IP) instead of `DC01.corp.local`. FS01 was forwarding events to itself. Fixed by correcting the GPO value to `http://DC01.corp.local:5985/wsman/SubscriptionManager/WEC,Refresh=60`.
 
 ---
 
-### ❌ Problem 2: "Access Denied" saat Subscription aktif
+**3. WEC WinRM endpoint (Source-Initiated) returned HTTP 404**
 
-Penyebab: DC01's machine account tidak punya izin baca Security log di FS01.
+When using Source-Initiated model, FS01 received HTTP 404 on `http://DC01.corp.local:5985/wsman/SubscriptionManager/WEC`. Repeated `wecutil qc /q` and WinRM restarts could not register the WEC plugin endpoint. `winrm enumerate winrm/config/plugin | findstr Event` returned empty — plugin was never registered.
 
-**Solusi di FS01 (sebagai administrator):**
-
-```cmd
-wevtutil sl Security /ca:"O:BAG:SYD:(A;;0xf0005;;;SY)(A;;0x5;;;BA)(A;;0x1;;;S-1-5-32-573)(A;;0x1;;;NS)"
-```
-
-Atau tambahkan `Network Service` ke local group `Event Log Readers` di FS01:
-
-```cmd
-net localgroup "Event Log Readers" "NETWORK SERVICE" /add
-```
+Resolution: **Switched to Collector-Initiated model** which bypasses the WEC endpoint requirement entirely. DC01 connects to FS01's WinRM, not the reverse.
 
 ---
 
-### ❌ Problem 3: Event Viewer tidak menampilkan event
+**4. AllowedSourceDomainComputers SDDL used wrong SID alias**
 
-**Cek status subscription di DC01:**
-
-```cmd
-wecutil gr FS01-Security-Events
-```
-
-Lihat bagian `LastError` dan `RunTimeStatus`.
-
-Jika ada error, lihat detail:
-
-```cmd
-wecutil gr FS01-Security-Events /f:xml
-```
-
----
-
-### ❌ Problem 4: Firewall memblokir WinRM
-
-Di FS01, buka firewall untuk WinRM:
-
-```cmd
-netsh advfirewall firewall add rule name="WinRM HTTP" dir=in action=allow protocol=TCP localport=5985
-```
-
-Atau via PowerShell:
+Source-Initiated subscription was configured with SDDL `(A;;GA;;;DC)` — `DC` in SDDL refers to **Domain Controllers** group (S-1-5-21-...-516), not Domain Computers. FS01 is a member server, not a DC, so it was never authorized to push events. Fixed by replacing with Domain Computers SID:
 
 ```powershell
-Enable-NetFirewallRule -DisplayGroup "Windows Remote Management"
+$sid = (Get-ADGroup "Domain Computers").SID.Value
+wecutil ss FS01-Security-Events /adc:"O:NSG:NSD:(A;;GA;;;$sid)(A;;GA;;;NS)"
 ```
 
 ---
 
-### ❌ Problem 5: GPO Subscription Manager belum apply
+**5. DC01 machine account (DC01$) lacked WinRM access on FS01**
 
-Di FS01, force apply GPO:
+When switching to Collector-Initiated, wecsvc on DC01 runs as `NETWORK SERVICE` (DC01$ machine account). DC01$ was not in FS01's `Remote Management Users` group, causing "WinRM cannot complete the operation" (error 0x803381E6) even though user-credential `Invoke-Command` to FS01 succeeded.
+
+Fixed by adding DC01$ to both groups on FS01:
 
 ```cmd
-gpupdate /force
-gpresult /r /scope computer
-```
-
-Cari `WEF-Source-Configuration` di Applied GPOs.
-
-Cek apakah registry key sudah ada di FS01:
-
-```
-HKLM\SOFTWARE\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager
+net localgroup "Event Log Readers" "CORP\DC01$" /add
+net localgroup "Remote Management Users" "CORP\DC01$" /add
 ```
 
 ---
 
-### ❌ Problem 6: Kerberos Authentication gagal
+**6. MinLatency mode silently switched DeliveryMode to Push**
 
-WEF menggunakan Kerberos by default. Jika ada masalah auth:
+Changing the subscription's `ConfigurationMode` to `MinLatency` automatically changed `DeliveryMode: Pull → Push`. In Push mode, FS01 must connect back to DC01's WEC endpoint — the same 404 issue as problem #3. Error: `0x80338095: The connectivity test from push subscription source to client failed`.
 
-Di DC01:
+Resolution: Used `ConfigurationMode: Custom` with explicit `Mode="Pull"` and `MaxLatencyTime: 30000` in the subscription XML, keeping DC01 as the initiator.
 
-```cmd
-klist
-```
+---
 
-Test koneksi WinRM dari DC01 ke FS01:
+**7. Tier1-Server-Admins not added to FS01 Local Administrators (Sub-Lab 06 gap)**
+
+During sub-lab 09 testing, `admin.t1` could not elevate on FS01 (prompted for higher credentials). `net localgroup Administrators` showed only `Administrator` and `CORP\Domain Admins` — `Tier1-Server-Admins` was missing despite being documented in sub-lab 06.
+
+Fixed by manually adding the group:
 
 ```powershell
-Test-WSMan -ComputerName FS01 -Authentication Kerberos
+Add-LocalGroupMember -Group "Administrators" -Member "CORP\Tier1-Server-Admins"
 ```
 
-Output sukses:
+Enterprise-grade fix via GPO (Preferences → Local Users and Groups) was noted as the correct long-term approach.
 
-```
-wsmid           : http://schemas.dmtf.org/wbem/wsman/1/wsmanidentity
-ProtocolVersion : http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd
-ProductVendor   : Microsoft Corporation
-ProductVersion  : OS: ...
+---
+
+**8. Final solution: Explicit credentials + Custom Pull mode**
+
+Root cause of persistent failures was that wecsvc machine account (DC01$) lacked sufficient rights on FS01, and no Pull mode with short latency was achievable via `wecutil ss`. Final working subscription:
+
+```xml
+<SubscriptionType>CollectorInitiated</SubscriptionType>
+<ConfigurationMode>Custom</ConfigurationMode>
+<Delivery Mode="Pull">
+    <Batching>
+        <MaxItems>1</MaxItems>
+        <MaxLatencyTime>30000</MaxLatencyTime>
+    </Batching>
+</Delivery>
+<ReadExistingEvents>true</ReadExistingEvents>
+<CommonUserName>CORP\admin.t1</CommonUserName>
 ```
 
 ---
 
-## 🔍 Validasi End-to-End
+## ✅ Security Model Achieved
 
-Setelah semua konfigurasi selesai:
-
-### Di FS01: Trigger event
-
-Login/logout dari WIN10 untuk generate event, atau:
-
-```cmd
-runas /user:corp\hr.staff cmd
-```
-
-(Masukkan password salah → generate Event ID 4625)
-
-### Di DC01: Cek Forwarded Events
-
-```
-Event Viewer
-→ Windows Logs
-→ Forwarded Events
-```
-
-Event 4624, 4625, 4672 dari `FS01` seharusnya muncul di sini.
-
-### Verifikasi via PowerShell di DC01:
-
-```powershell
-Get-WinEvent -LogName "ForwardedEvents" -MaxEvents 20 | Format-List TimeCreated, Id, MachineName, Message
-```
+- Centralized log collection without per-server access
+- Events collected for authentication monitoring (4624, 4625, 4672)
+- Collector authenticated with least-privilege Tier 1 account
+- Source firewall explicitly allows only required ports (5985, RPC)
 
 ---
 
-## 🧪 Access Validation Matrix (setelah WEF berjalan)
+## 🧠 Key Learning Outcomes
 
-```text
-Lokasi Log     | Dapat dilihat dari
-FS01 local     | Admin login langsung ke FS01
-DC01 Forwarded | Admin di DC01 tanpa perlu login ke FS01
-```
-
----
-
-## 🧠 Prinsip yang Diterapkan
-
-- Centralized Log Management
-- Source-Initiated Event Forwarding
-- Group Policy-driven automation
-- Principle of Least Privilege (NETWORK SERVICE read-only)
-- Kerberos-based authentication for log transport
+- WEF storage folder must exist before any subscription is created
+- `MinLatency` changes delivery mode to Push — avoid with Collector-Initiated
+- Machine account (COMPUTER$) permissions on remote hosts differ from user credentials
+- Collector-Initiated is more reliable when Source-Initiated WEC endpoint cannot be registered
+- `wecutil qc /q` may report success without fully registering the WEC WinRM plugin
+- SDDL alias `DC` = Domain Controllers, NOT Domain Computers
 
 ---
 
-## ✅ Hasil yang Diharapkan
+## 🛠 Skills Demonstrated
 
-Setelah sub-lab ini berhasil:
-
-- DC01 menampilkan Security events dari FS01 di **Forwarded Events**
-- Tidak perlu login langsung ke FS01 untuk melihat log
-- Event 4624 (logon), 4625 (failed logon), 4672 (special privilege) tercatat terpusat
-- Scalable: mudah ditambah source baru (server lain) tanpa konfigurasi manual
+- Windows Event Forwarding (WEF) end-to-end configuration
+- WinRM and WS-Management protocol troubleshooting
+- Kerberos machine account permission management
+- WinRM plugin diagnosis via `winrm enumerate` and `Invoke-WebRequest`
+- Subscription management with `wecutil` (gs, ss, gr, cs, ds)
+- Firewall rule management for WinRM and Remote Event Log Management
+- SDDL interpretation and AllowedSourceDomainComputers configuration
+- XML-based subscription import for fine-grained WEF control
 
 ---
 
-## 📝 Status
+## 🏢 Enterprise Relevance
 
-- [ ] WinRM aktif di FS01
-- [ ] Windows Event Collector aktif di DC01
-- [ ] GPO `WEF-Source-Configuration` dibuat dan di-link ke Tier1
-- [ ] Subscription `FS01-Security-Events` dibuat di DC01
-- [ ] NETWORK SERVICE ditambahkan ke Event Log Readers di FS01
-- [ ] Firewall WinRM dibuka di FS01
-- [ ] Forwarded Events muncul di DC01
+WEF is a foundational component of any SIEM pipeline in Microsoft environments. This lab mirrors:
+
+- Microsoft recommended WEF architecture for centralized security monitoring
+- NSA/CISA guidance on Windows event log collection
+- Log aggregation as prerequisite for threat detection and incident response
+- Collector-Initiated model used by SIEM agents (Splunk UF, ArcSight, Sentinel)
